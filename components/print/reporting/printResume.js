@@ -203,7 +203,7 @@ const GeneratePdf = ({testsArray}) => {
     const formattedDate = `${dateParts[1]}-${dateParts[2]}-${dateParts[0]}`;
 
 
-    addTextOnRow(doc, `Vers 1.0`, 0, 140);                          //System 420 Version
+    addTextOnRow(doc, `Vers 1.1`, 0, 140);                          //System 420 Version
     addTextOnRow(doc, `${test.type_of_test}`, 0, 230);             //type_of_test
     addTextOnRow(doc, `${test.pn}\n${test.application}\n${test.revision}`, 1, 73); 
     addTextOnRow(doc, `${test.plt}\n${test.lot_number}\n${test.datecode}`, 1, 250);                
@@ -343,7 +343,6 @@ const GeneratePdf = ({testsArray}) => {
    * @param {Object} test - The test object associated with the histograms.
   */
   function addHistograms(doc, container, test) {
-    addHeader(doc, test);
 
     const initialY = 120;
     const xCoord = [50, 320];
