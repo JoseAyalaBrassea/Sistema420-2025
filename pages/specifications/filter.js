@@ -36,7 +36,7 @@ export default function Home() {
     setIsNewSearch(false);
 
     if(specifications.error) return alert(specifications.error);
-    if(!specifications.pn) return alert('Sorry, there are no tests that matches your params.');
+    if(!specifications.pn) return alert('Sorry, there are no tests that matches your paramssss.');
 
     router.push('/specifications/viewSpecs')
   },[specifications])

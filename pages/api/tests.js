@@ -3,7 +3,6 @@ import { PrismaClient } from '@prisma/client';
 //Initializes Prisma Client for database operations.
 const prisma = new PrismaClient();
 
-
 /**
  * Handles HTTP requests for retrieving test data based on various filters.
  * 
@@ -27,39 +26,34 @@ export default async function handler(req, res) {
     try{
       
       // Extract query parameters and parse ID list if provided
-      const {id, pn, application, plt, start_datetime1, start_datetime2, yield1, yield2} = req.query;
-      const idList = id.split(',').map((i) => (parseInt(i)));
+      const { id, pn, application, plt, start_datetime1, start_datetime2, yield1, yield2 } = req.query;
+
+      if (!pn && !application && !plt && !start_datetime1 && !start_datetime2 && !yield1 && !yield2 && !id) {
+          return res.status(400).json({ error: 'At least one filter parameter is required.' });
+      }
+
+      const idList = id ? id.split(',').map((i) => parseInt(i)) : [];
 
       // Construct dynamic query based on provided filters
       const query = {
-          where: 
-          (idList.length > 0 && idList[0])?
-          {id: {in: idList}}
-          :
-          {
-            AND: [
-              {pn},
-              {application},
-              {plt},
-              {start_datetime: {...(start_datetime1? {gte: new Date(start_datetime1)} : {}), ...(start_datetime2? {lte: new Date(start_datetime2)} : {} )}},
-              {yield: {gte: yield1, lte: yield2}}
-            ]
+          where: idList.length > 0 && idList[0] ? { id: { in: idList } } : {
+              AND: [
+                  pn ? { pn } : {},
+                  application ? { application } : {},
+                  plt ? { plt } : {},
+                  start_datetime1 || start_datetime2 ? { start_datetime: { ...(start_datetime1 ? { gte: new Date(start_datetime1) } : {}), ...(start_datetime2 ? { lte: new Date(start_datetime2) } : {}) } } : {},
+                  yield1 || yield2 ? { yield: { ...(yield1 ? { gte: yield1 } : {}), ...(yield2 ? { lte: yield2 } : {}) } } : {}
+              ].filter(Boolean)
           },
           include: {
-            part_test_specifications: true,
-            test_result: {
-              orderBy: [
-                {
-                  dut_no: 'asc',
-                },
-                {
-                  switch: 'asc',
-                },
-                {
-                  test_type: 'asc'
-                },
-              ],
-            }
+              part_test_specifications: true,
+              test_result: {
+                  orderBy: [
+                      { dut_no: 'asc' },
+                      { switch: 'asc' },
+                      { test_type: 'asc' }
+                  ],
+              }
           },
       };
 
@@ -69,7 +63,8 @@ export default async function handler(req, res) {
     }
     catch (error){
       // Handle errors and send error response
-      res.status(505).json({error: 'Fetching Error'});
+      console.error('Error fetching tests:', error);
+      res.status(505).json({ error: 'Fetching Error' });
     }
   }
 }
