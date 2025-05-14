@@ -343,7 +343,6 @@ const GeneratePdf = ({testsArray}) => {
    * @param {Object} test - The test object associated with the histograms.
   */
   function addHistograms(doc, container, test) {
-
     const initialY = 120;
     const xCoord = [50, 320];
     const fontSize = 10;
@@ -351,86 +350,79 @@ const GeneratePdf = ({testsArray}) => {
     const chartHeight = 90;
     const gapChartY = 30;
     const gapTitleY = -7;
-    const Xbox = 180;
-    const Ybox = 10;
-    const boxWidth = 60;
-    const boxHeight = 40;
-    const boxIndentationX = 3;
-    const boxIndentationY = 10;
 
     const distanceTitleY = fontSize + gapTitleY;
     const distanceChartY = chartHeight + gapChartY;
 
     const maxChartHeight = 762 - (distanceChartY + distanceTitleY);
-    const maxSectionHeight = 762 - (maxChartHeight + fontSize);
 
     doc.setFontSize(fontSize);
 
     let y = initialY;
     let xIteration = 0;
 
+    // Añade el header en la primera página
+    addHeader(doc, test);
+
     function insertHistogramCanvas(htmlReference) {
-      if (htmlReference.localName == "canvas") {
-        if (y > maxChartHeight) {
-          y = initialY;
-          xIteration = 0;
-          doc.addPage();
-          addHeader(doc, test);
+        if (htmlReference.localName === "canvas") {
+            if (y > maxChartHeight) {
+                // Añade una nueva página y el header
+                y = initialY;
+                xIteration = 0;
+                doc.addPage();
+                addHeader(doc, test);
+            }
+
+            const x = xCoord[xIteration];
+            let test_name = htmlReference.attributes.test_type.nodeValue;
+            let mean = htmlReference.attributes.mean.nodeValue;
+            let sigma = htmlReference.attributes.sigma.nodeValue;
+            let ucpk = htmlReference.attributes.ucpk.nodeValue;
+            let lcpk = htmlReference.attributes.lcpk.nodeValue;
+
+            addCenteredText(doc, test_name, y, x, x + chartWidth);
+
+            addWhiteBgtoCanva(htmlReference);
+            doc.addImage(
+                htmlReference.toDataURL("image/jpeg", 1.0),
+                "JPEG",
+                x,
+                y + distanceTitleY,
+                chartWidth,
+                chartHeight
+            );
+
+            // Ajusta la posición para el siguiente gráfico
+            xIteration = (xIteration + 1) % 2;
+            y = xIteration === 0 ? y + distanceChartY : y;
         }
 
-        const x = xCoord[xIteration];
-        let test_name = htmlReference.attributes.test_type.nodeValue;
-        let mean = htmlReference.attributes.mean.nodeValue;
-        let sigma = htmlReference.attributes.sigma.nodeValue;
-        let ucpk = htmlReference.attributes.ucpk.nodeValue;
-        let lcpk = htmlReference.attributes.lcpk.nodeValue;
-
-        addCenteredText(doc, test_name, y, x, x + chartWidth);
-
-        addWhiteBgtoCanva(htmlReference);
-        doc.addImage(
-          htmlReference.toDataURL("image/jpeg", 1.0),
-          "JPEG",
-          x,
-          y + distanceTitleY,
-          chartWidth,
-          chartHeight
-        );
-
-        // Box
-        doc.setFontSize(7);
-        doc.setFillColor("#FFFFFF").rect(x + Xbox, y + Ybox, boxWidth, boxHeight, 'FD');
-        doc.text(`Mean: ${mean}\nSgma: ${sigma}\nUCpk: ${ucpk}\nLCpk: ${lcpk} `, x + Xbox + boxIndentationX, y + Ybox + boxIndentationY);
-        doc.setFontSize(fontSize);
-
-        xIteration = (xIteration + 1) % 2;
-        y = xIteration == 0 ? y + distanceChartY : y; 
-      }
-
-      for (let child of htmlReference.children) {
-        insertHistogramCanvas(child);
-      }
+        for (let child of htmlReference.children) {
+            insertHistogramCanvas(child);
+        }
     }
 
     for (let switchContainer of container.children) {
-      const switch_name = switchContainer.attributes.switch_name.nodeValue;
+        const switch_name = switchContainer.attributes.switch_name.nodeValue;
 
-      doc.setFont(undefined, "bold");
-      addCenteredText(doc, switch_name, y, 22.6, 586.7);
-      doc.setFont(undefined, "normal");
-      y += fontSize;
+        doc.setFont(undefined, "bold");
+        addCenteredText(doc, switch_name, y, 22.6, 586.7);
+        doc.setFont(undefined, "normal");
+        y += fontSize;
 
-      insertHistogramCanvas(switchContainer);
+        insertHistogramCanvas(switchContainer);
 
-      if (y > maxChartHeight) {
-        y = initialY;
-        xIteration = 0;
-        
-        addHeader(doc, test);
-      } else {
-        y += distanceChartY;
-        xIteration = 0;
-      }
+        if (y > maxChartHeight) {
+            // Añade una nueva página y el header si es necesario
+            y = initialY;
+            xIteration = 0;
+            doc.addPage();
+            addHeader(doc, test);
+        } else {
+            y += distanceChartY;
+            xIteration = 0;
+        }
     }
   }
 
