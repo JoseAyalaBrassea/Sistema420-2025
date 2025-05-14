@@ -36,6 +36,36 @@ export const SpecificationsProvider = props => {
     }
 
     /**
+     * Asynchronously fetches specifications by part number and application.
+     * @param {string} pn - Part number to query specifications.
+     * @param {string} application - Application to query specifications.
+     * @returns {Object} Fetched specifications data.
+     */
+    const getSpecificationByPN = async (pn, application) => {
+        try {
+            // Construye la URL con los parámetros necesarios
+            const response = await fetch(`/api/specifications?pn=${pn}&application=${application}`, {
+                method: 'GET',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+            });
+
+            // Verifica si la respuesta es válida
+            if (!response.ok) {
+                throw new Error('Failed to fetch specifications');
+            }
+
+            // Convierte la respuesta a JSON
+            const data = await response.json();
+            return data;
+        } catch (error) {
+            console.error('Error fetching specifications by PN:', error);
+            throw error;
+        }
+    };
+
+    /**
      * Asynchronously creates new specifications based on provided parameters and updates state.
      * @param {Object} params - Specifications data to be created.
      */
@@ -90,7 +120,18 @@ export const SpecificationsProvider = props => {
     }
     
     // Provides the specifications context to child components
-    return <SpecificationsContext.Provider value={{specifications: state, getSpecifications, createSpecifications, updateSpecifications}} {...props} />;
+    return (
+        <SpecificationsContext.Provider
+            value={{
+                specifications: state,
+                getSpecifications,
+                createSpecifications,
+                updateSpecifications,
+                getSpecificationByPN, // Agregado aquí
+            }}
+            {...props}
+        />
+    );
 };
 
 /**

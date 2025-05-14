@@ -97,15 +97,19 @@ export default function UpdateSpecs() {
     const loadSpecification = async () => {
         setIsLoading(true);
         try {
-            const url = `/api/specifications?pn=${partNumber}&application=${application}`;  // URL correcta con ambos parámetros
-            console.log("Request URL:", url); // Para depuración
-            const spec = await getSpecificationByPN(partNumber, application); // Este debería estar usando la URL correcta internamente
-            if (spec) {
-                console.log("Specification fetched:", spec);  // Asegúrate de que los datos sean correctos
+            const url = `/api/specifications?pn=${partNumber}&application=${application}`;
+            console.log("Request URL:", url);
+
+            const spec = await getSpecificationByPN(partNumber, application);
+            if (spec && Object.keys(spec).length > 0) {
+                console.log("Specification fetched:", spec);
                 setActualSpecifications(spec);
+            } else {
+                alert("No specifications found for the given part number and application.");
             }
         } catch (error) {
             console.error("Error loading specification:", error);
+            alert("An error occurred while loading the specification. Please try again.");
         }
         setIsLoading(false);
     };

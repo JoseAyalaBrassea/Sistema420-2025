@@ -36,11 +36,7 @@ export default function SpecificationsNavbar() {
               </Link>
             </>
           }
-          <Link href={{ pathname: "/specifications/createSpecs" }} legacyBehavior>
-            <a className="w-full py-3 px-4 semibold hover:cursor-pointer hover:text-white hover:bg-red-900 lg:w-auto lg:text-white lg:py-4 lg:px-5 lg:hover:text-white lg:hover:bg-red-800 lg:text-2xl">
-              Create Specifications
-            </a>
-          </Link>
+          
         </>
       }
       <Link href={{ pathname: "/specifications/filter" }} legacyBehavior>
@@ -48,6 +44,14 @@ export default function SpecificationsNavbar() {
           Filter
         </a>
       </Link>
+
+      <Link href={{ pathname: "/specifications/createSpecs" }} legacyBehavior>
+            <a className="w-full py-3 px-4 semibold hover:cursor-pointer hover:text-white hover:bg-red-900 lg:w-auto lg:text-white lg:py-4 lg:px-5 lg:hover:text-white lg:hover:bg-red-800 lg:text-2xl">
+              Create Specifications
+            </a>
+      </Link>
+
+
     </>
   );
 }
