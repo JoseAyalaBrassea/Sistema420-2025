@@ -2,6 +2,8 @@ import { useState, useRef, useEffect} from 'react';
 import ExcelJS from 'exceljs';
 import CloseIcon from "../../svg/closeIcon";
 import RightArrowIcon from "../../svg/rightArrowIcon";
+import { testsViewParameters } from '../../../constants/index';
+
 
 
 /**
@@ -26,6 +28,7 @@ export default function PrintOptions({ setPrePrinting, setPrinting, isUnique, op
    * toggling content areas, and initiating print or Excel export.
   */
   const selectedTestsRef = useRef(null);
+  const test_histogramas_pdf = useRef(null);
   const nonSelectedTestsRef = useRef(null);
   const [email, setEmail] = useState('');
   
@@ -65,8 +68,6 @@ const generateExcelBuffer = async (selectedTests) => {
     return null;
   }
 };
-
-
 
 const generateAndSendExcel = async () => {
   try {
@@ -148,7 +149,7 @@ const generateAndSendExcel = async () => {
     }
 
     new_options.selected_tests = new_options.selected_tests.sort((t1, t2)=>(t1.id - t2.id));
-
+    console.log(new_options.selected_tests)
     setOptions(new_options);
   }
 
@@ -210,6 +211,7 @@ const generateAndSendExcel = async () => {
   
 
   return (
+    
     <div className="z-10 top-0 left-0 fixed bg-opacity-30 h-screen w-screen bg-black flex items-center justify-center px-1 text-lg">
       <div className="bg-white p-4 rounded-lg">
         <div onClick={closeHandler} className="flex flex-row justify-center items-center relative mb-2">
@@ -259,6 +261,51 @@ const generateAndSendExcel = async () => {
                 <input defaultChecked={options.include_charts} onClick={chartsCheckboxChangeHandler} id="histograms-checkbox" name="histograms-checkbox" type="checkbox"/> 
                 <label htmlFor="histograms-checkbox">Histograms</label>
               </div>
+              {options.include_charts && options.selected_tests.length > 0 && (
+  <div className="mt-2">
+    <p className="font-medium text-sm">Highlight test types in histograms:</p>
+    <div className="grid grid-cols-2 md:grid-cols-3 gap-x-4 gap-y-2 mt-2 text-sm">
+    {
+  Array.from(
+    new Set(
+      options.selected_tests.flatMap(t =>
+        t.test_result?.map(r => r.test_type) || []
+      )
+    )
+  )
+  .filter(testType => 
+    testsViewParameters[testType] && testsViewParameters[testType].units
+  )
+  .map(testType => {
+    const params = testsViewParameters[testType];
+    return (
+      <label key={testType} className="flex items-center gap-x-2">
+        <input
+          type="checkbox"
+          // checked={options.highlighted_test_types?.includes(testType) || false}
+          checked={options.highlighted_test_types?.includes(testsViewParameters[testType].name) || false}
+          onChange={(e) => {
+            const value = e.target.value;
+            const newOptions = { ...options };
+            const current = newOptions.highlighted_test_types || [];
+            newOptions.highlighted_test_types = e.target.checked
+              ? [...current, value]
+              : current.filter(t => t !== value);
+            setOptions(newOptions);
+          }}
+          // value={testsViewParameters[testType].name}
+          value={params.name}
+        />
+        {params.name || testType}
+      </label>
+    )
+  })
+}
+
+    </div>
+  </div>
+)}
+
               <div className='flex flex-row gap-x-2 items-center'>
                 <input checked={options.include_raw_data} onChange={rawdataCheckboxChangeHandler} id="rawdata-checkbox" name="rawdata-checkbox" type="checkbox"/> 
                 <label htmlFor="rawdata-checkbox">Raw Data</label>
@@ -273,7 +320,6 @@ const generateAndSendExcel = async () => {
               <option value="false">No</option>
             </select>
           </div>
-
           <span className='text-[17px] hover:underline text-indigo-900 hover:cursor-pointer transform hover:scale-105' onClick={printExcelButtonHandler}>Save Excel</span>
           <button onClick={printButtonHandler} className="border text-white bg-red-900 font-semibold rounded mx-auto px-5 py-1 transform hover:bg-red-800 hover:scale-105">Print</button>
           <div className='flex flex-col items-center mt-4'>

@@ -29,7 +29,7 @@ const orderedTestTypes = [
 export default function SwitchHistogramContainer({ params, printing, hideFails, switchNumber, switchObject }){
     const sortedKeys = orderedTestTypes.filter(type => switchObject[type]);
     return(
-        <div className={printing? "" : "flex flex-col items-center mt-6 w-full"} switch_name={switchesLabels[switchNumber]}>
+        <div className={printing? "" : "flex flex-col items-center  w-full"} switch_name={switchesLabels[switchNumber]}>
             <h2 className='font-bold text-xl'>{switchesLabels[switchNumber]}</h2>
 
             <div className={printing? '' : 'flex flex-row flex-wrap justify-center w-full gap-y-6'}>

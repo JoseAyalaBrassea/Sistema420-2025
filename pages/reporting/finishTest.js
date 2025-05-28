@@ -22,7 +22,7 @@ export default function FinishTest() {
   const {currentSearch, updateParams} = useTestsStore();
   const router = useRouter();
 
-  console.log();
+ 
 
   // Effect hook to handle initial URL query parameters and redirect if necessary.
   useEffect( async ()=>{
