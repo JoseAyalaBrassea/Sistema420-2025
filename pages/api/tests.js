@@ -3,13 +3,6 @@ import { PrismaClient } from '@prisma/client';
 //Initializes Prisma Client for database operations.
 const prisma = new PrismaClient();
 
-// Utility to safely serialize BigInt values
-function safeJson(obj) {
-  return JSON.parse(
-    JSON.stringify(obj, (_, v) => (typeof v === 'bigint' ? v.toString() : v))
-  );
-}
-
 /**
  * Handles HTTP requests for retrieving test data based on various filters.
  * 
@@ -66,7 +59,7 @@ export default async function handler(req, res) {
 
       // Execute query and return results
       let tests = await prisma.test.findMany(query);
-      res.status(200).json(safeJson(tests))
+      res.status(200).json(tests)
     }
     catch (error){
       // Handle errors and send error response
