@@ -4,13 +4,7 @@ import Header from "../../components/header";
 import Footer from "../../components/footer";
 import TestSelector from "../../components/testSelector";
 import NotFound from "../../components/notFound";
-// import PrintResume from '../../components/print/reporting/printResume';
-import dynamic from 'next/dynamic';
-
-const PrintResume = dynamic(() => import('../../components/print/reporting/printResume'), {
-  ssr: false,
-});
-
+import PrintResume from '../../components/print/reporting/printResume';
 import ParetoChart from '../../components/pareto/paretoChart';
 
 import { testsViewParameters } from '../../constants/index'
