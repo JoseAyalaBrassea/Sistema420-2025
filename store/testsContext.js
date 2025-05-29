@@ -21,17 +21,20 @@ export const TestsProvider = props => {
     const updateParams = async (params) => {
         try {
             // Fetches test data from the server using provided parameters.
-            const response = await fetch('/api/tests?' + Object.keys(params).map(key => key + '=' + params[key]).join('&'), {
+            var response = await fetch('/api/tests?' + Object.keys(params).map(key => key + '=' + params[key]).join('&'), {
                 method: 'GET', 
                 headers: {
                     'Content-Type': 'application/json'
                 }
             });
             console.log(await response);
-            let json = await response.json();
+            var json = await response.json();
+            console.log(json);
 
             // Processes the fetched tests data before updating the state.
-            json = json.map((t) => ({...t, idle_time: new Date(0).toLocaleString(), test_time: new Date(0).toLocaleString(), elapsed_time: (t.end_datetime - t.start_datetime).toLocaleString()
+            // json = json.map((t) => ({...t, idle_time: new Date(0).toLocaleString(), test_time: new Date(0).toLocaleString(), elapsed_time: (t.end_datetime - t.start_datetime).toLocaleString()
+            // }));
+            json = json.map((t) => ({...t, idle_time: (t.idle_time).toLocaleString(), test_time: (t.test_time).toLocaleString(), elapsed_time: (t.elapsed_time).toLocaleString()
             }));
 
             // Prepares the updated tests data for the state.
@@ -63,8 +66,22 @@ export const TestsProvider = props => {
         dispatch(updateParamsAction(current));
     };
 
+    const setSelectedTests = (selectedTests) => {
+        // Actualiza el estado con los tests seleccionados
+        const current = {
+            ...state,
+            selectedTests,
+        };
+        dispatch(updateParamsAction(current));
+    };
+
     // Provides the tests context to its children components.
-    return <TestsContext.Provider value={{currentSearch: state, updateParams, selectTest}} {...props} />;
+    return <TestsContext.Provider value={{
+        currentSearch: state,
+        updateParams,
+        selectTest,
+        toggleTestSelection: setSelectedTests // <-- agrega esto
+    }} {...props} />;
 };
 
 // Custom hook to use the tests context in functional components.
