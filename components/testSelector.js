@@ -1,63 +1,132 @@
+import React, { useState } from "react";
 import { useTestsStore } from "../store/testsContext";
-import { useRouter } from 'next/router';
-import { useEffect } from "react";
+import {
+  Checkbox,
+  TextField,
+  Paper,
+} from "@mui/material";
+import Autocomplete from "@mui/material/Autocomplete";
 
-/**
- * TestSelector component that renders a dropdown to select a test from a list.
- * It uses the `useTestsStore` hook to access and update the current test selection.
- * Changes to the selection are handled via the `selectTest` function from the context.
- */
 export default function TestSelector() {
-  const router = useRouter(); // Hook to access the router object.
-  const { currentSearch, selectTest } = useTestsStore(); // Accessing store context for tests.
+  const { currentSearch, toggleTestSelection } = useTestsStore();
+  const [inputValue, setInputValue] = useState("");
 
-  /**
-   * Handles change events on the select dropdown.
-   * Prevents the default event action and updates the current test selection.
-   * 
-   * @param {Event} e The event object associated with the change event.
-   */
-  const handleChange = (e) => {
-    e.preventDefault();
+  if (!currentSearch.tests || currentSearch.tests.length === 0) {
+    return <p>No tests available</p>;
+  }
 
-    selectTest(e.target.value); // Update the test selection based on the user's choice.
+  const handleChange = (event, newSelected) => {
+    // Siempre usa los objetos originales
+    const selected = currentSearch.tests.filter(test =>
+      newSelected.some(sel => sel.id === test.id)
+    );
+    toggleTestSelection(selected);
   };
 
+  // Filtra las opciones según el inputValue
+  const filteredOptions = currentSearch.tests.filter(
+    (test) =>
+      `${test.id} ${test.pn} ${test.application} ${test.revision} ${test.plt}`
+        .toLowerCase()
+        .includes(inputValue.toLowerCase())
+  );
+
   return (
-    // Conditionally renders if there are more than one test available.
-    currentSearch.tests.length > 1 &&
-    <div className="w-full flex flex-col items-center my-6 mx-4">
-      <h2 className="text-xl">Select a Test.</h2> {/* Title for the test selection */}
-      <div className="relative inline-block w-full max-w-lg text-gray-700">
-        {/* Dropdown select for choosing a test */}
-        <select
-          onChange={handleChange} // Handler for change events.
-          className="w-full h-10 pl-3 pr-6 text-base placeholder-gray-600 border rounded-lg appearance-none focus:shadow-outline"
-        >
-          {currentSearch.tests.map((test, index) => {
-            // Maps each test to an option element in the dropdown.
-            return (
-              <option value={index} key={test.id} selected={test.id === currentSearch.selectedTest.id}>
-                ID: {test.id}. PN: {test.pn}. APPLICATION: {test.application}.
-              </option>
-            );
-          })}
-        </select>
-        {/* Icon within the select element */}
-        <div className="absolute inset-y-0 right-0 flex items-center px-2 pointer-events-none">
-          <svg className="w-4 h-4 fill-current" viewBox="0 0 20 20">
-            {/* Arrow icon SVG path */}
-            <path
-              d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"
-              clipRule="evenodd"
-              fillRule="evenodd"
-            ></path>
-          </svg>
-        </div>
-      </div>
+    <div>
+      <TextField
+        id="test-search"
+        variant="outlined"
+        label="Search tests..."
+        value={inputValue}
+        onChange={(e) => setInputValue(e.target.value)}
+        style={{ marginBottom: 16, fontSize: 18, minWidth: 420, maxWidth: 600 }}
+        InputProps={{
+          style: { fontSize: 18, minHeight: 56 },
+        }}
+      />
+
+      <Autocomplete
+        multiple
+        options={filteredOptions}
+        getOptionLabel={(test) => `ID: ${test.id} - PN: ${test.pn}`}
+        value={currentSearch.selectedTests || []}
+        isOptionEqualToValue={(option, value) => option.id === value.id}
+        onChange={handleChange}
+        disableCloseOnSelect
+        inputId="test-select"
+        PaperComponent={({ children, ...props }) => (
+          <Paper
+            {...props}
+            style={{
+              minWidth: 280,
+              maxWidth: 380,
+              width: "100%",
+              maxHeight: 320, // Limita la altura total del dropdown
+              overflow: "auto",
+            }}
+          >
+            {children}
+          </Paper>
+        )}
+        ListboxProps={{
+          style: {
+            maxHeight: 220, // Limita la altura de la lista de opciones (con scroll)
+          },
+        }}
+        renderOption={(props, option, { selected }) => (
+          <li
+            {...props}
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "flex-start",
+              padding: 8,
+              fontSize: 15,
+              minWidth: 260,
+              maxWidth: 300,
+              width: "100%",
+              wordBreak: "break-word",
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                width: "100%",
+              }}
+            >
+              <Checkbox checked={selected} style={{ marginRight: 8, padding: 4 }} size="small" />
+              <span style={{ fontWeight: 600, marginRight: 8, fontSize: 16 }}>
+                ID: {option.id}
+              </span>
+              <span style={{ color: "#888", fontSize: 15 }}>PN: {option.pn}</span>
+            </div>
+            <div
+              style={{
+                fontSize: 13,
+                color: "#666",
+                marginLeft: 28,
+                marginTop: 2,
+              }}
+            >
+              APPL: {option.application} | REV: {option.revision} | PLT: {option.plt}
+            </div>
+          </li>
+        )}
+        renderInput={(params) => (
+          <TextField
+            {...params}
+            id="test-select"
+            variant="outlined"
+            label="Select Tests"
+            placeholder="Select from filtered tests..."
+            InputProps={{
+              ...params.InputProps,
+              style: { fontSize: 16, minHeight: 40 },
+            }}
+          />
+        )}
+      />
     </div>
   );
 }
-
-
-     

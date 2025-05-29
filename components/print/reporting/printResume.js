@@ -1,23 +1,24 @@
-import React from "react";
-import { useRef, useState, useEffect } from "react";
-import { jsPDF, HTMLOptionImage } from "jspdf";
-import PrintIcon from "../../svg/printIcon";
+import React, { useRef, useState, useEffect } from "react";
+import { jsPDF } from "jspdf";
 import "jspdf-autotable";
-import { saveAs } from 'file-saver';
-import * as XLSX from 'xlsx';
+import { saveAs } from "file-saver";
+import ExcelJS from "exceljs";
 
+import PrintIcon from "../../svg/printIcon";
 import PrintOptions from "./printOptions";
 import ParetoChart from "../../pareto/paretoChart";
 import MainHistogramContainer from "../../charts/mainHistogramsContainer";
 import { testsViewParameters } from "../../../constants/index";
 import Loader from "../../loader";
+import autoTable from "jspdf-autotable";
+
 
 /**
  * GeneratePdf Component
  * This component provides the functionality to generate PDF reports and Excel files
  * based on selected tests and specified options. It supports including summaries,
  * charts, and raw data within the generated documents. The component uses jsPDF for
- * PDF generation and XLSX from SheetJS for Excel file creation.
+ * PDF generation and ExcelJS  for Excel file creation.
  * 
  * Props:
  * @param {Array} testsArray - An array of test objects to be included in the generated report.
@@ -27,7 +28,7 @@ import Loader from "../../loader";
  * the final printing action. The useEffect hook triggers the generation process once the
  * printing state is set to true.
  */
-const GeneratePdf = ({testsArray}) => {
+const GeneratePdf = ({ testsArray, totals }) => {
   // References for dynamic chart components for PDF generation
   const paretoChartRef = useRef(null);
   const histogramsContainerRef = useRef(null);
@@ -36,7 +37,16 @@ const GeneratePdf = ({testsArray}) => {
   const [prePrinting, setPrePrinting] = useState(false);
   const [printing, setPrinting] = useState(false);
 
-  const [ options, setOptions ] = useState({ selected_tests: testsArray, non_selected_tests: [], include_summary: true, include_charts: true, include_raw_data: true, include_fails: true, excel_format: false });
+  const [ options, setOptions ] = useState({ 
+    selected_tests: testsArray, 
+    non_selected_tests: [], 
+    include_summary: true, 
+    include_charts: true, 
+    include_raw_data: true, 
+    include_fails: true,
+    excel_format: false,
+    // highlighted_tests_type:[] // guarda arreglos de test seleccionados para impresion de pdf
+   });
 
   //Opens the printing options dialog
   const handlerBubbleClick = () => {
@@ -64,32 +74,59 @@ const GeneratePdf = ({testsArray}) => {
   }, [printing,paretoChartRef, histogramsContainerRef]);
 
   //Generates an Excel file with selected tests and options.
-  function generateExcel() {
-    // Create a new workbook and add a worksheet
-    const workbook = XLSX.utils.book_new();
+  // function generateExcel() {
+  //   // Create a new workbook and add a worksheet
+  //   const workbook = XLSX.utils.book_new();
     
-    for(let i in options.selected_tests){
-      const { headers, data } = getRawDataTable(options.selected_tests[i]);
+  //   for(let i in options.selected_tests){
+  //     const { headers, data } = getRawDataTable(options.selected_tests[i]);
 
-      const excel_content = [
-        ...headers,
-        ...data
-      ];
+  //     const excel_content = [
+  //       ...headers,
+  //       ...data
+  //     ];
 
-      console.log(excel_content)
+  //     console.log(excel_content)
 
-      const worksheet = XLSX.utils.aoa_to_sheet(excel_content);
-      XLSX.utils.book_append_sheet(workbook, worksheet, ("Test " + options.selected_tests[i].id));
+  //     const worksheet = XLSX.utils.aoa_to_sheet(excel_content);
+  //     XLSX.utils.book_append_sheet(workbook, worksheet, ("Test " + options.selected_tests[i].id));
+  //   }
+    
+  //   // // Convert the workbook to a binary string
+  //   const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
+
+  //   // // Save the file to the user's computer
+  //   const blob = new Blob([excelBuffer], { type: 'application/octet-stream' });
+  //   saveAs(blob, 'REPORT.xlsx');
+  // }
+  async function generateExcel() {
+    const workbook = new ExcelJS.Workbook();
+  
+    for (let i in options.selected_tests) {
+      const test = options.selected_tests[i];
+      const { headers, data } = getRawDataTable(test);
+  
+      const worksheet = workbook.addWorksheet(`Test ${test.id}`);
+  
+      // Agrega encabezados (una sola fila)
+      worksheet.addRow(headers);
+  
+      // Agrega las filas de datos
+      data.forEach(row => {
+        worksheet.addRow(row);
+      });
     }
-    
-    // // Convert the workbook to a binary string
-    const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
-
-    // // Save the file to the user's computer
-    const blob = new Blob([excelBuffer], { type: 'application/octet-stream' });
+  
+    // Genera el archivo Excel en un buffer
+    const buffer = await workbook.xlsx.writeBuffer();
+  
+    // Guarda el archivo en el navegador
+    const blob = new Blob([buffer], {
+      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    });
+  
     saveAs(blob, 'REPORT.xlsx');
   }
-
 
   //Generates a PDF report with selected tests and options.
   function generatePdf() {
@@ -99,14 +136,21 @@ const GeneratePdf = ({testsArray}) => {
     });
     doc.setFontSize(12);
 
-    for(let i in options.selected_tests){
+    // Imprime el resumen total al inicio
+    if (totals) {
+      addTotalsTestSummary(doc, totals, options.selected_tests);
+      doc.addPage();
+    }
+
+    for (let i in options.selected_tests) {
       if(options.include_summary){
         addTestSummary(doc, paretoChartRef.current.children[i].children[0], options.selected_tests[i]);
         
         if(options.include_charts || options.include_raw_data) doc.addPage();
       }
       if(options.include_charts){
-        addHistograms(doc, histogramsContainerRef.current.children[i].children[0], options.selected_tests[i]);
+        
+        addHistograms(doc, histogramsContainerRef.current.children[i].children[0], options.selected_tests[i],options.highlighted_test_types);
 
         if(options.include_raw_data) doc.addPage();
       }
@@ -116,10 +160,8 @@ const GeneratePdf = ({testsArray}) => {
       
       if(i < options.selected_tests.length - 1) doc.addPage();
     }
-    
 
-    window.open( doc.output("bloburl", { filename: "REPORT" }), "_blank");
-
+    window.open(doc.output("bloburl", { filename: "REPORT" }), "_blank");
   }
 
   /**
@@ -203,7 +245,7 @@ const GeneratePdf = ({testsArray}) => {
     const formattedDate = `${dateParts[1]}-${dateParts[2]}-${dateParts[0]}`;
 
 
-    addTextOnRow(doc, `Vers 1.1`, 0, 140);                          //System 420 Version
+    addTextOnRow(doc, `Vers 1.0`, 0, 140);                          //System 420 Version
     addTextOnRow(doc, `${test.type_of_test}`, 0, 230);             //type_of_test
     addTextOnRow(doc, `${test.pn}\n${test.application}\n${test.revision}`, 1, 73); 
     addTextOnRow(doc, `${test.plt}\n${test.lot_number}\n${test.datecode}`, 1, 250);                
@@ -319,7 +361,7 @@ const GeneratePdf = ({testsArray}) => {
 
     const { headers, data } = getRawDataTable(test);
 
-    doc.autoTable({
+    autoTable(doc,{
       startY: 108,
       styles: {
         halign: "center",
@@ -341,90 +383,122 @@ const GeneratePdf = ({testsArray}) => {
    * @param {jsPDF} doc - The jsPDF document instance.
    * @param {HTMLElement} container - The container element holding histogram canvases for the test.
    * @param {Object} test - The test object associated with the histograms.
+   * @param {Object} test_seleccionados - AGREGADO Test seleccionados por el usuario para impresin de histogramas
   */
-  function addHistograms(doc, container, test) {
-    const initialY = 120;
-    const xCoord = [50, 320];
+  function addHistograms(doc, container, test, test_seleccionados) {
+    if (!Array.isArray(test_seleccionados)) test_seleccionados = [];
+    addHeader(doc, test);
     const fontSize = 10;
-    const chartWidth = 200;
-    const chartHeight = 90;
+    const initialY = 120; //margen de header cuando se inicializa la hoja
+    const xCoord = [50, 320]; 
+    const isLargeChart = test_seleccionados.length !== 0;
+    const chartWidth = isLargeChart ? 400 : 200;// si se hace seleccion de test, cambia tamano de chart 
+    const chartHeight = isLargeChart ? 180 : 90;
     const gapChartY = 30;
     const gapTitleY = -7;
-
+    const Xbox = isLargeChart ? 380 : 180;
+    const Ybox = 10;
+    const boxWidth = 60;
+    const boxHeight = 40;
+    const boxIndentationX = 3;
+    const boxIndentationY = 10;
+  
     const distanceTitleY = fontSize + gapTitleY;
     const distanceChartY = chartHeight + gapChartY;
-
+  
     const maxChartHeight = 762 - (distanceChartY + distanceTitleY);
-
+  
     doc.setFontSize(fontSize);
-
+  
     let y = initialY;
-    let xIteration = 0;
-
-    // Añade el header en la primera página
-    addHeader(doc, test);
-
+    let xIteration = 0; // cuando se imprimen todos los canvas en tamaño pequeño, cuenta cuantos graficos por renglon 
+  
     function insertHistogramCanvas(htmlReference) {
-        if (htmlReference.localName === "canvas") {
-            if (y > maxChartHeight) {
-                // Añade una nueva página y el header
-                y = initialY;
-                xIteration = 0;
-                doc.addPage();
-                addHeader(doc, test);
-            }
-
-            const x = xCoord[xIteration];
-            let test_name = htmlReference.attributes.test_type.nodeValue;
-            let mean = htmlReference.attributes.mean.nodeValue;
-            let sigma = htmlReference.attributes.sigma.nodeValue;
-            let ucpk = htmlReference.attributes.ucpk.nodeValue;
-            let lcpk = htmlReference.attributes.lcpk.nodeValue;
-
-            addCenteredText(doc, test_name, y, x, x + chartWidth);
-
-            addWhiteBgtoCanva(htmlReference);
-            doc.addImage(
-                htmlReference.toDataURL("image/jpeg", 1.0),
-                "JPEG",
-                x,
-                y + distanceTitleY,
-                chartWidth,
-                chartHeight
-            );
-
-            // Ajusta la posición para el siguiente gráfico
-            xIteration = (xIteration + 1) % 2;
-            y = xIteration === 0 ? y + distanceChartY : y;
-        }
-
-        for (let child of htmlReference.children) {
-            insertHistogramCanvas(child);
-        }
-    }
-
-    for (let switchContainer of container.children) {
-        const switch_name = switchContainer.attributes.switch_name.nodeValue;
-
-        doc.setFont(undefined, "bold");
-        addCenteredText(doc, switch_name, y, 22.6, 586.7);
-        doc.setFont(undefined, "normal");
-        y += fontSize;
-
-        insertHistogramCanvas(switchContainer);
-
-        if (y > maxChartHeight) {
-            // Añade una nueva página y el header si es necesario
+      if (htmlReference.localName === "canvas") {
+        
+        const test_type = htmlReference.attributes.test_type ? htmlReference.attributes.test_type.nodeValue : "";
+        if (test_seleccionados.length === 0 || test_seleccionados.includes(test_type)) {
+          if (y > maxChartHeight) {
             y = initialY;
             xIteration = 0;
             doc.addPage();
             addHeader(doc, test);
-        } else {
+          }
+  
+          // Si es gráfico grande, siempre usar xCoord[0], si pequeño usar alternancia
+          const x = isLargeChart ? xCoord[0] : xCoord[xIteration];
+  
+          let mean = htmlReference.attributes.mean.nodeValue;
+          let sigma = htmlReference.attributes.sigma.nodeValue;
+          let ucpk = htmlReference.attributes.ucpk.nodeValue;
+          let lcpk = htmlReference.attributes.lcpk.nodeValue;
+  
+          addCenteredText(doc, test_type, y, x, x + chartWidth);
+  
+          addWhiteBgtoCanva(htmlReference);
+          doc.addImage(
+            htmlReference.toDataURL("image/jpeg", 1.0),
+            "JPEG",
+            x,
+            y + distanceTitleY,
+            chartWidth,
+            chartHeight
+          );
+  
+          // Box estadístico
+          doc.setFontSize(7);
+          doc.setFillColor("#FFFFFF").rect(x + Xbox, y + Ybox, boxWidth, boxHeight, 'FD');
+          doc.text([
+            `Mean: ${mean}`,
+            `Sigma: ${sigma}`,
+            `UCpk: ${ucpk}`,
+            `LCpk: ${lcpk}`
+          ], x + Xbox + boxIndentationX, y + Ybox + boxIndentationY);
+  
+          doc.setFontSize(fontSize);
+  
+          if (isLargeChart) {
+            // para gráficos grandes, avanzar Y siempre porque solo uno por línea
             y += distanceChartY;
-            xIteration = 0;
+          } else {
+            // para gráficos pequeños, alternar posición horizontal
+            xIteration = (xIteration + 1) % 2;
+            if (xIteration === 0) {
+              y += distanceChartY;
+            }
+          }
         }
+      }
+      // recursivo para encontrar todos los elementos canvas y agregar histograma 
+      for (let child of htmlReference.children) {
+        insertHistogramCanvas(child);
+      }
     }
-  }
+  
+    for (let switchContainer of container.children) {
+      const switch_name = switchContainer.attributes.switch_name.nodeValue;
+      
+      doc.setFont(undefined, "bold");
+      addCenteredText(doc, switch_name, y, 22.6, 586.7);
+      
+      doc.setFont(undefined, "normal");
+      y += fontSize; 
+      insertHistogramCanvas(switchContainer);
+  
+      if (y > maxChartHeight) {
+        y = initialY;
+        xIteration = 0;
+        // addHeader(doc, test);
+      } else {
+        if(!isLargeChart)
+        {
+          y += distanceChartY;
+        }
+        xIteration = 0;
+      }
+    }
+  } 
+
 
   /**
    * Applies a white background to a canvas element. This is necessary because the canvas might have
@@ -518,6 +592,157 @@ const GeneratePdf = ({testsArray}) => {
     return { headers: [headers], data };
   }
 
+  function addTotalsSummary(doc, totals) {
+    doc.setFont(undefined, "bold");
+    addCenteredTextOnRow(doc, "TOTALS SUMMARY", 2);
+    doc.setFont(undefined, "normal");
+
+    let row = 4;
+    addTextOnRow(doc, "Relays tested:", row, 100);
+    addTextOnRowLtR(doc, `${totals.relays_tested}`, row, 300);
+    row++;
+    addTextOnRow(doc, "Relays passed:", row, 100);
+    addTextOnRowLtR(doc, `${totals.relays_passed_420}`, row, 300);
+    row++;
+    addTextOnRow(doc, "Relays failed:", row, 100);
+    addTextOnRowLtR(doc, `${totals.relays_failed_420}`, row, 300);
+    row++;
+    addTextOnRow(doc, "Yield:", row, 100);
+    addTextOnRowLtR(doc, `${totals.yield}%`, row, 300);
+    row++;
+    addTextOnRow(doc, "Non 420 rejects:", row, 100);
+    addTextOnRowLtR(doc, `${totals.relays_failed_non_420}`, row, 300);
+    row++;
+    addTextOnRow(doc, "Total quantity:", row, 100);
+    addTextOnRowLtR(doc, `${totals.total_quantity}`, row, 300);
+    row++;
+    addTextOnRow(doc, "Reject quantity:", row, 100);
+    addTextOnRowLtR(doc, `${totals.reject_quantity}`, row, 300);
+    row++;
+    addTextOnRow(doc, "Final yield:", row, 100);
+    addTextOnRowLtR(doc, `${totals.final_yield}%`, row, 300);
+    row++;
+    addTextOnRow(doc, "Issue quantity:", row, 100);
+    addTextOnRowLtR(doc, `${totals.issue_quantity}`, row, 300);
+    row++;
+    addTextOnRow(doc, "Issue yield:", row, 100);
+    addTextOnRowLtR(doc, `${totals.issue_yield}%`, row, 300);
+    row++;
+    addTextOnRow(doc, "Elapsed time:", row, 100);
+    addTextOnRowLtR(doc, `${totals.elapsed_time}`, row, 300);
+    row++;
+    addTextOnRow(doc, "Idle time:", row, 100);
+    addTextOnRowLtR(doc, `${totals.idle_time}`, row, 300);
+    row++;
+    addTextOnRow(doc, "Test time:", row, 100);
+    addTextOnRowLtR(doc, `${totals.test_time}`, row, 300);
+  }
+
+  function addTotalsTestSummary(doc, totals, testsArray) {
+    doc.line(22.6, 30, 586.7, 30);
+
+    doc.setFont(undefined, "bold");
+    addTextOnRow(doc, "COTO System 420 - TOTALS SUMMARY", 0, 22.6);
+    doc.setFont(undefined, "normal");
+
+    // Usa el primer test seleccionado para fecha y hora
+    let testDate = "";
+    let startTime = "";
+    if (testsArray && testsArray.length > 0 && testsArray[0].start_datetime) {
+      const dateParts = testsArray[0].start_datetime.slice(0, 10).split("-");
+      testDate = `${dateParts[1]}-${dateParts[2]}-${dateParts[0]}`;
+      startTime = testsArray[0].start_datetime.slice(11, 19);
+    }
+
+    doc.setFont(undefined, "bold");
+    addTextOnRow(doc, `PN      :`, 1, 22.6);
+    addTextOnRow(doc, `APPL :`, 2, 22.6);
+    addTextOnRow(doc, `REV# :`, 3, 22.6);
+    addTextOnRow(doc, `PLT  :`, 1, 210.6);
+    addTextOnRow(doc, `DC   :`, 2, 210.6);
+    addTextOnRow(doc, `ID   :`, 3, 210.6);
+    addTextOnRow(doc, `TEST DATE   :`, 1, 398.6);
+    addTextOnRow(doc, `START TIME :`, 2, 398.6);
+    doc.setFont(undefined, "normal");
+    addTextOnRow(doc, `${totals.pn || ""}`, 1, 73);
+    addTextOnRow(doc, `${totals.application || ""}`, 2, 73);
+    addTextOnRow(doc, `${totals.revision || ""}`, 3, 73);
+    addTextOnRow(doc, `${totals.plt || ""}`, 1, 250.6);
+    addTextOnRow(doc, `${totals.datecode || ""}`, 2, 250.6);
+    addTextOnRow(doc, `${totals.id || ""}`, 3, 250.6);
+    addTextOnRow(doc, `${testDate}`, 1, 485);
+    addTextOnRow(doc, `${startTime}`, 2, 485);
+
+    doc.line(22.6, 90, 586.7, 90);
+
+    // Subtítulos y layout igual que addTestSummary
+    doc.setFont(undefined, "bold");
+    addCenteredTextOnRow(doc, "TEST SUMMARY (TOTALS)", 6);
+    addTextOnRow(doc, "SYSTEM 420 . . ", 8, 160);
+    addTextOnRow(doc, "NON-420 . . . .  ", 13, 160);
+    addTextOnRow(doc, "FINAL YIELD . ", 15, 160);
+    addTextOnRow(doc, "ISSUE YIELD . ", 19, 160);
+    addTextOnRow(doc, "TIME . . . . . . . . ", 22, 160);
+    addTextOnRow(doc, "RATE . . . . . . .  ", 26, 160);
+
+    doc.setFont(undefined, "normal");
+    addTextOnRow(doc, "Relays tested", 8, 250);
+    addTextOnRow(doc, "Relays passed", 9, 250);
+    addTextOnRow(doc, "Relays failed", 10, 250);
+    addTextOnRow(doc, "Yield (system 420)", 11, 250);
+
+    addTextOnRow(doc, "Non-420 rejects", 13, 250);
+
+    addTextOnRow(doc, "Total quantity", 15, 250);
+    addTextOnRow(doc, "Reject quantity", 16, 250);
+    addTextOnRow(doc, "Final yield", 17, 250);
+
+    addTextOnRow(doc, "Issue quantity", 19, 250);
+    addTextOnRow(doc, "Issue yield", 20, 250);
+
+    addTextOnRow(doc, "Elapsed time", 22, 250);
+    addTextOnRow(doc, "Idle time", 23, 250);
+    addTextOnRow(doc, "Test time", 24, 250);
+
+    addTextOnRow(doc, "Actual rate (RPH)", 26, 250);
+    addTextOnRow(doc, "Avg. test rate (RPH)", 27, 250);
+    addTextOnRow(doc, "Peak test rate (RPH)", 28, 250);
+
+    for (let i = 8; i <= 28; i++) {
+      if ([12, 14, 18, 21, 25].includes(i)) continue;
+      addTextOnRow(doc, ":", i, 365);
+    }
+
+    // Info
+    addTextOnRowLtR(doc, `${totals?.relays_tested}`, 8, 445);
+    addTextOnRowLtR(doc, `${totals?.relays_passed_420}`, 9, 445);
+    addTextOnRowLtR(doc, `${totals?.relays_failed_420}`, 10, 445);
+
+    addTextOnRowLtR(doc, `${totals?.relays_failed_non_420}`, 13, 445);
+
+    addTextOnRowLtR(doc, `${totals?.total_quantity}`, 15, 445);
+    addTextOnRowLtR(doc, `${totals?.reject_quantity}`, 16, 445);
+
+    addTextOnRowLtR(doc, `${totals?.issue_quantity}`, 19, 445);
+
+    addTextOnRowLtR(doc, totals?.elapsed_time, 22, 445);
+    addTextOnRowLtR(doc, totals?.idle_time, 23, 445);
+    addTextOnRowLtR(doc, totals?.test_time, 24, 445);
+
+    addTextOnRowLtR(doc, "UNKNOWN", 26, 445);
+    addTextOnRowLtR(doc, "UNKNOWN", 27, 445);
+    addTextOnRowLtR(doc, "UNKNOWN", 28, 445);
+
+    doc.setFont(undefined, "bold");
+    addTextOnRowLtR(doc, `${totals?.yield}`, 11, 435);
+    addTextOnRowLtR(doc, `${totals?.final_yield}`, 17, 435);
+    addTextOnRowLtR(doc, `${totals?.issue_yield}`, 20, 435);
+
+    addTextOnRow(doc, "%", 11, 437);
+    addTextOnRow(doc, "%", 17, 437);
+    addTextOnRow(doc, "%", 20, 437);
+  }
+
   return (
     <div className="w-full bg-white">
       <button
@@ -549,15 +774,43 @@ const GeneratePdf = ({testsArray}) => {
       {
         printing &&
         <div ref={histogramsContainerRef}>
+          
           {
+            
+          //  options.selected_tests.filter(test => options.highlighted_tests_types?.includes(test.id)).map((test)=>(
             options.selected_tests.map((test)=>(
-              <div key={`histogram-main-container-test${test.id}`} style={{maxWidth: "none",maxHeight: "none",height: "270px",width: "600px"}}>
-                <MainHistogramContainer hideFails={ !options.include_fails } selectedTest={test} printing={true}/>
-              </div>
-            ))  
-          }
+                <div key={`histogram-main-container-test${test.id}`} style={{maxWidth: "none",maxHeight: "none",height: "270px",width: "600px"}}>
+                   {/* <MainHistogramContainer hideFails={ !options.include_fails } selectedTest={test} printing={true}/> */
+                   <MainHistogramContainer hideFails={ !options.include_fails } selectedTest={!options.highlighted_tests_types ? test : options.highlighted_tests_types } printing={true}/>}
+                 </div>
+               ))
+              }
         </div>
       }
+      {/* {
+  printing &&
+  <div ref={histogramsContainerRef}>
+    {
+      options.highlighted_test_types == null
+      ? options.selected_tests.map((test) => (
+          <div
+            key={`histogram-main-container-test${test.id}`}
+            style={{ maxWidth: "none", maxHeight: "none", height: "270px", width: "600px" }}
+          >
+            <MainHistogramContainer hideFails={!options.include_fails} selectedTest={test} printing={true} />
+          </div>
+        ))
+      : options.highlighted_test_types.map((test) => (
+          <div
+            key={`histogram-main-container-test${test.id}`}
+            style={{ maxWidth: "none", maxHeight: "none", height: "270px", width: "600px" }}
+          >
+            <MainHistogramContainer hideFails={!options.include_fails} selectedTest={test} printing={true} />
+          </div>
+        ))
+    }
+  </div>
+} */}
     </div>
   );
 };
