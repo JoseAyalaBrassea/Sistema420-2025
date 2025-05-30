@@ -757,7 +757,7 @@ const GeneratePdf = ({ testsArray, totals }) => {
       }
       {
         prePrinting && 
-        <PrintOptions isUnique={testsArray.length == 1} setPrePrinting={setPrePrinting} setPrinting={setPrinting} options={options} setOptions={setOptions}/>
+        <PrintOptions isUnique={testsArray.length == 1} setPrePrinting={setPrePrinting} setPrinting={setPrinting} options={options} setOptions={setOptions} printing={printing}/>
       }
       {
         printing && 
