@@ -14,6 +14,7 @@ import RightArrowIcon from "../svg/rightArrowIcon";
 import { useState, useEffect, useRef } from "react";
 import pattern from "patternomaly";
 import zoomPlugin from 'chartjs-plugin-zoom';
+
 ChartJS.register(
   CategoryScale,
   LinearScale,
@@ -38,18 +39,19 @@ function roundDecimals(number, decimals){
 
 /**
  * Retrieves the dataset for generating a chart based on the provided test data, test type, and parameters.
+ * Ahora incluye el zoomRange para el desglose dinámico de overflow/underflow.
  * @param {number[]} testArray - An array containing the test data.
  * @param {string} testType - The type of test.
  * @param {Object} params - Additional parameters for the test.
+ * @param {Object} zoomRange - El rango visible actual del gráfico {min, max}.
  * @returns {Object} An object containing the dataset for the chart.
  */
-function getChartDataSet(testArray, testType, params) {
+function getChartDataSet(testArray, testType, params, zoomRange) {
   const name = testsViewParameters[testType].name;
   const min_view = parseFloat(testsViewParameters[testType].min_view(params));
   const max_view = parseFloat(testsViewParameters[testType].max_view(params));
-  const min_overflow = testsViewParameters[testType].min_overflow ? parseFloat(testsViewParameters[testType].min_overflow(params)) : min_view * 0.9;  // 10% 
-  const max_overflow = testsViewParameters[testType].max_overflow ? parseFloat(testsViewParameters[testType].max_overflow(params)) : max_view * 1.1;  // 10% 
-
+  const min_overflow_threshold = testsViewParameters[testType].min_overflow ? parseFloat(testsViewParameters[testType].min_overflow(params)) : min_view * 0.9;
+  const max_overflow_threshold = testsViewParameters[testType].max_overflow ? parseFloat(testsViewParameters[testType].max_overflow(params)) : max_view * 1.1;
 
   const min_pass = testsViewParameters[testType].min_pass && parseFloat(testsViewParameters[testType].min_pass(params));
   const max_pass = testsViewParameters[testType].max_pass && parseFloat(testsViewParameters[testType].max_pass(params));
@@ -65,7 +67,7 @@ function getChartDataSet(testArray, testType, params) {
   const variance = nonNulltestArray.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / (nonNulltestArray.length - 1);
   const sigma = Math.sqrt(variance);
 
-  /** 
+  /**
    * Calculate CPK
    * @param {*} USL - Upper specification limit
    * @param {*} LSL - Lower specification limit
@@ -75,77 +77,76 @@ function getChartDataSet(testArray, testType, params) {
   const LSL = min_pass ? parseFloat(min_pass) : null;
   const cpk = Math.min( (USL - mean)/(3 * sigma), (mean - LSL)/(3 * sigma) )
 
-   /** 
+  /**
    * Calculate the upper and lower control limits (UCPK and LCPK)
    * @param {float} ucpk - Upper Control Process Capability
-   * @param {float} lcpk - Lower Control Process Capability  */
+   * @param {float} lcpk - Lower Control Process Capability  */
   const ucpk = (USL - mean) / (3 * sigma);
   const lcpk = (mean - LSL) / (3 * sigma);;
 
   let max_frequency = 0;
 
-  // Arrays creation 
+  // Arrays creation
   let passObject = {};
   let failObject = {};
   let overflowObject = {};
   let underflowObject = {};
 
-   /** 
-   * Arrays creation for storing pass and fail data
-   * @param {object} passObject - Object to store pass data.
-   * @param {object} failObject - Object to store fail data.
-   * @param {number} rounded_bin - The lower boundary of the bin for the current value.
-   * @param {number} next_bin - The upper boundary of the bin for the current value.
-   * @param {string} actual_label - A string representing the range of the current bin.
-   *  
-   * @returns {object} passObject and failObject  */
+  // OJO: Usamos zoomRange (la vista actual del gráfico) para determinar el overflow dinámico
+  const currentVisibleMin = zoomRange.min;
+  const currentVisibleMax = zoomRange.max;
 
   for(let value of testArray){
     value = parseFloat(value);
     let rounded_bin = Math.floor( value / bin_size ) * bin_size;
     let next_bin = rounded_bin + bin_size;
 
-    
-    if (value > max_overflow) {
-      if (overflowObject[max_overflow]) overflowObject[max_overflow].value++;
-      else overflowObject[max_overflow] = { value: 1, label: `>${max_overflow}` };
-    } else if (value < min_overflow) {
-      if (underflowObject[min_overflow]) underflowObject[min_overflow].value++;
-      else underflowObject[min_overflow] = { value: 1, label: `<${min_overflow}` };
+    // Lógica para el desglose dinámico del overflow/underflow
+    if (value > currentVisibleMax) {
+      // Si el valor está fuera del límite visible superior
+      const overflowX = currentVisibleMax + (bin_size / 2); // Posición dinámica justo al borde de la vista
+      if (overflowObject[overflowX]) overflowObject[overflowX].value++;
+      else overflowObject[overflowX] = { value: 1, label: `>${roundDecimals(currentVisibleMax, 2)}` }; // Etiqueta dinámica
+    } else if (value < currentVisibleMin) {
+      // Si el valor está fuera del límite visible inferior
+      const underflowX = currentVisibleMin - (bin_size / 2); // Posición dinámica justo al borde de la vista
+      if (underflowObject[underflowX]) underflowObject[underflowX].value++;
+      else underflowObject[underflowX] = { value: 1, label: `<${roundDecimals(currentVisibleMin, 2)}` }; // Etiqueta dinámica
     } else {
-    if ( rounded_bin <= min_pass && value >= min_pass ) {
-      rounded_bin = min_pass;
-      next_bin = Math.floor( ( min_pass + bin_size ) / bin_size ) * bin_size;
-    }
-    else if ( next_bin >= max_pass && value <= max_pass ) {
-      next_bin = max_pass;
-      rounded_bin = Math.floor( ( max_pass - bin_size ) / bin_size ) * bin_size;
-    }
-    else if ( rounded_bin <= max_pass && value > max_pass ) {
-      rounded_bin = max_pass;
-      next_bin = Math.floor( ( max_pass + bin_size ) / bin_size ) * bin_size;
-    }
-    else if ( next_bin >= min_pass && value < min_pass ) {
-      next_bin = min_pass;
-      rounded_bin = Math.floor( ( min_pass - bin_size ) / bin_size ) * bin_size;
-    }
-    if (rounded_bin < 0) rounded_bin = 0;
+      // Lógica existente para PASS/FAIL si el valor está dentro del rango visible
+      if ( rounded_bin <= min_pass && value >= min_pass ) {
+          rounded_bin = min_pass;
+          next_bin = Math.floor( ( min_pass + bin_size ) / bin_size ) * bin_size;
+      }
+      else if ( next_bin >= max_pass && value <= max_pass ) {
+          next_bin = max_pass;
+          rounded_bin = Math.floor( ( max_pass - bin_size ) / bin_size ) * bin_size;
+      }
+      else if ( rounded_bin <= max_pass && value > max_pass ) {
+          rounded_bin = max_pass;
+          next_bin = Math.floor( ( max_pass + bin_size ) / bin_size ) * bin_size;
+      }
+      else if ( next_bin >= min_pass && value < min_pass ) {
+          next_bin = min_pass;
+          rounded_bin = Math.floor( ( min_pass - bin_size ) / bin_size ) * bin_size;
+      }
+      if (rounded_bin < 0) rounded_bin = 0;
 
 
-    rounded_bin = roundDecimals(rounded_bin, 4);
-    next_bin = roundDecimals(next_bin, 4);
-    
-    let average_bin = ( rounded_bin + next_bin ) / 2; 
-    let actual_label = `${rounded_bin} - ${next_bin}`;
+      rounded_bin = roundDecimals(rounded_bin, 4);
+      next_bin = roundDecimals(next_bin, 4);
 
-    if( rounded_bin < min_pass || next_bin > max_pass){
-      if(failObject[average_bin])  failObject[average_bin].value++;
-      else                        failObject[average_bin] = { value: 1, label: actual_label};
-    }
-    else {
-      if(passObject[average_bin])  passObject[average_bin].value++;
-      else                        passObject[average_bin] = { value: 1, label: actual_label};
-    }
+      let average_bin = ( rounded_bin + next_bin ) / 2;
+      let actual_label = `${rounded_bin} - ${next_bin}`;
+
+      if( rounded_bin < min_pass || next_bin > max_pass){
+          if(failObject[average_bin])  failObject[average_bin].value++;
+          else                        failObject[average_bin] = { value: 1, label: actual_label};
+      }
+      else {
+          if(passObject[average_bin])  passObject[average_bin].value++;
+          else                        passObject[average_bin] = { value: 1, label: actual_label};
+      }
     }
   }
 
@@ -156,22 +157,22 @@ function getChartDataSet(testArray, testType, params) {
   let underflow_array = [];
 
   for (let i in overflowObject) {
-    overflow_array.push({ x: i, y: overflowObject[i].value, label: overflowObject[i].label });
+    overflow_array.push({ x: parseFloat(i), y: overflowObject[i].value, label: overflowObject[i].label });
   }
   for (let i in underflowObject) {
-    underflow_array.push({ x: i, y: underflowObject[i].value, label: underflowObject[i].label });
+    underflow_array.push({ x: parseFloat(i), y: underflowObject[i].value, label: underflowObject[i].label });
   }
   for(let i in passObject){
-    pass_array.push({ x: i, y: passObject[i].value, label: passObject[i].label});
+    pass_array.push({ x: parseFloat(i), y: passObject[i].value, label: passObject[i].label});
 
     if(passObject[i].value > max_frequency) max_frequency = passObject[i].value;
   }
   for(let i in failObject){
-    fail_array.push({ x: i, y: failObject[i].value, label: failObject[i].label});
+    fail_array.push({ x: parseFloat(i), y: failObject[i].value, label: failObject[i].label});
 
     if(failObject[i].value > max_frequency) max_frequency = failObject[i].value;
   }
-  
+
   return { overflow_array, underflow_array ,name, pass_array, fail_array, step_size: bin_size, units: 'ohms', max_frequency: Math.ceil(max_frequency / 5) * 5, max_view, min_view, min_pass, max_pass, mean: roundDecimals(mean, 2), sigma: roundDecimals(sigma, 2), ucpk: roundDecimals(ucpk, 2), lcpk: roundDecimals(lcpk, 2) };
 }
 
@@ -185,10 +186,22 @@ function getChartDataSet(testArray, testType, params) {
  * @param {string} testType - The type of test.
  * @returns {JSX.Element} A React component for displaying the histogram chart.
  */
-
 export default function TestHistogram({ params, printing, hideFails, testArray, testType }) {
-  const { name, pass_array, fail_array, overflow_array, underflow_array, original_array, step_size, units, max_frequency, max_view, min_view, min_pass, max_pass, mean, sigma, ucpk, lcpk } = getChartDataSet(testArray, testType, params);
+  const initialMin = parseFloat(testsViewParameters[testType].min_view(params));
+  const initialMax = parseFloat(testsViewParameters[testType].max_view(params));
+
+  // Estado para el rango de zoom. Inicialmente, el rango de vista completo.
+  const [zoomRange, setZoomRange] = useState({ min: initialMin, max: initialMax });
+
+  // Reiniciar zoomRange cuando los parámetros del test cambian
+  useEffect(() => {
+    setZoomRange({ min: initialMin, max: initialMax });
+  }, [testType, params, initialMin, initialMax]); // Dependencias del efecto
+
+  // Pasa el zoomRange al getChartDataSet para el desglose dinámico de overflow/underflow
+  const { name, pass_array, fail_array, overflow_array, underflow_array, step_size, units, max_frequency, max_view, min_view, min_pass, max_pass, mean, sigma, ucpk, lcpk } = getChartDataSet(testArray, testType, params, zoomRange);
   const chartRef = useRef(null);
+
   const data = {
     datasets: [
       ...(
@@ -246,6 +259,7 @@ export default function TestHistogram({ params, printing, hideFails, testArray, 
       ),
     ],
   };
+
   const options = {
     animation: {
       duration: 0
@@ -269,7 +283,10 @@ export default function TestHistogram({ params, printing, hideFails, testArray, 
           font: {
             size: printing? 22 : 12,
           },
-        }
+        },
+        // Los límites del eje X están controlados por el estado zoomRange
+        min: zoomRange.min,
+        max: zoomRange.max,
       },
       y: {
         beginAtZero: true,
@@ -333,35 +350,53 @@ export default function TestHistogram({ params, printing, hideFails, testArray, 
       },
       zoom: {
         pan: {
-          enabled: true,
-          mode: 'x',
-          modifierKey: 'ctrl',
+          enabled: true, // El pan sigue habilitado
+          mode: 'x',    // Solo en el eje X
+          modifierKey: null, // Sin tecla modificadora para el arrastre normal
+          onPanComplete: ({chart}) => {
+            const xScale = chart.scales.x;
+            setZoomRange({min: xScale.min, max: xScale.max});
+          },
         },
         zoom: {
-          drag: {
-            enabled: true
+          wheel: {
+            enabled: true, // Habilita el zoom con la rueda del ratón
           },
-          mode: 'x',
+          pinch: {
+            enabled: true, // Habilita el zoom con el gesto de pinza
+          },
+          drag: {
+            enabled: false, // Asegúrate de que el zoom por arrastre (drag) esté deshabilitado si quieres que el arrastre sea solo para pan
+          },
+          mode: 'x', // El zoom también será solo en el eje X
+          onZoomComplete: ({chart}) => { // Callback al finalizar el zoom
+            const xScale = chart.scales.x;
+            setZoomRange({min: xScale.min, max: xScale.max});
+          },
         }
       }
     }
-  }
+  };
 
   const resetView = (e) => {
     e.preventDefault();
 
-    if(chartRef){
-      chartRef.current.resetZoom()
+    if(chartRef.current){
+      chartRef.current.resetZoom();
+      // También resetea el estado de zoomRange a los valores iniciales
+      // para que el UI refleje el reset y getChartDataSet se re-calcule.
+      setZoomRange({ min: initialMin, max: initialMax });
     }
   }
 
   return (
     <div className={printing? 'w-full text-center' : 'w-full text-center max-w-lg flex flex-col'}>
       <h1 className="text-md">{name}</h1>
+      {/* Pasa la referencia al componente Bar */}
       <Bar ref={chartRef} test_type={name} data={data} options={options} mean={mean} sigma={sigma} ucpk={ucpk} lcpk={lcpk}/>
       <div className="flex flex-col gap-y-2 items-center ml-12 mr-2">
         <div className="flex flex-row w-full px-5 justify-center">
-          <button  onClick={resetView} className="bg-blue-300 rounded-lg px-2 hover:bg-blue-800 transform hover:scale-105 text-white" >
+          <button onClick={resetView} className="bg-blue-300 rounded-lg px-2 hover:bg-blue-800 transform hover:scale-105 text-white" >
             Reset View
           </button>
         </div>
@@ -384,7 +419,7 @@ export default function TestHistogram({ params, printing, hideFails, testArray, 
           </div>
         </div>
       </div>
-      
+
     </div>
   );
 }
