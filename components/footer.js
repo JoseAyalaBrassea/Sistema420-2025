@@ -1,7 +1,7 @@
 import Link from 'next/link'; // Importing Link from next/link for potential navigation.
 
 // Initial array for decoding secret message.
-const arr = [66,69,84,79,45,67,80,85];
+const arr = [70,65,83,67,71]; // ASCII for 'FASCG'
 import { useState, useEffect } from 'react'; // Importing useState and useEffect hooks from react.
 
 /**
@@ -14,7 +14,7 @@ export default function Footer() {
   const [by, setBy] = useState('CETYS UNIVERSITY'); // State to display the designer's name or a secret message.
 
   useEffect(() => {
-    if (counter === 21) {
+    if (counter === 13) {
       // Decodes and sets the designer's name to a secret message when counter is 21.
       setBy(String.fromCharCode(...arr));
     }

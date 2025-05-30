@@ -150,9 +150,9 @@ const testsViewParameters = {
     units: "μsec",
     bin_size: 0.01,
     failure_reason: Result,
-    max_view: ({ rtm_max_time })=>( Math.ceil( rtm_max_time / 0.05) * 0.05 + 0.05  ),
+    max_view: ({ rtm_max_time })=>( Math.ceil( rtm_max_time / 0.05) * 0.05 + 0.05  ) * 1000,
     min_view: ()=>(0),
-    max_pass: ({rtm_max_time})=>(rtm_max_time),
+    max_pass: ({rtm_max_time})=>(rtm_max_time) *1000,
     decimals: 0
   },
   TTM: {
